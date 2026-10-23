@@ -45,6 +45,7 @@ public class MainActivity extends Activity {
 
         web = new WebView(this);
         web.setBackgroundColor(Color.parseColor("#F5F2EA"));
+        web.setOverScrollMode(View.OVER_SCROLL_NEVER);
 
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -56,6 +57,10 @@ public class MainActivity extends Activity {
         settings.setDisplayZoomControls(false);
         settings.setMediaPlaybackRequiresUserGesture(true);
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        // keep the layout exactly as designed, whatever the system font size is
+        settings.setTextZoom(100);
+        settings.setUseWideViewPort(false);
+        settings.setLoadWithOverviewMode(false);
 
         web.setWebViewClient(new WebViewClient());
         web.addJavascriptInterface(new Bridge(), "Android");
