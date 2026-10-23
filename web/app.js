@@ -46,6 +46,7 @@
       totalMilk: 'Total milk',
       daysRecorded: 'Days recorded',
       average: 'Average per day',
+      averageShort: 'Daily avg',
       dailyRecord: 'Daily record',
       noEntries: 'No milk recorded yet',
       noEntriesSub: 'Add your first entry in the Entry tab.',
@@ -71,7 +72,7 @@
       entry: 'Entry',
       month: 'Month',
       prices: 'Milk prices',
-      pricesSub: 'Price per litre. Used for every entry.',
+      pricesSub: 'Price per litre. New price starts from this month — old bills keep their old price.',
       pricePerLitre: 'Price per litre',
       names: 'Milk type names',
       namesSub: 'Leave empty to use the default name.',
@@ -109,6 +110,7 @@
       yourName: 'Your name (optional)',
       namePh: 'e.g. Ramesh',
       priceHint: 'You can change these any time in Settings.',
+      priceHintMonth: 'Price used for this month',
       about: 'Made for small dairy accounts. Works offline. Your data stays on this phone.',
       goToday: 'Today',
       thisMonthShort: 'This month',
@@ -148,6 +150,7 @@
       totalMilk: 'कुल दूध',
       daysRecorded: 'दिन दर्ज',
       average: 'रोज़ का औसत',
+      averageShort: 'रोज़ का औसत',
       dailyRecord: 'रोज़ का रिकॉर्ड',
       noEntries: 'अभी कोई दूध दर्ज नहीं',
       noEntriesSub: 'एंट्री टैब में पहली एंट्री भरें।',
@@ -173,7 +176,7 @@
       entry: 'एंट्री',
       month: 'महीना',
       prices: 'दूध के दाम',
-      pricesSub: 'प्रति लीटर दाम। हर एंट्री पर लागू होगा।',
+      pricesSub: 'प्रति लीटर दाम। नया दाम इसी महीने से लगेगा — पुराने बिल अपने पुराने दाम पर रहेंगे।',
       pricePerLitre: 'प्रति लीटर दाम',
       names: 'दूध के नाम',
       namesSub: 'खाली छोड़ें तो डिफ़ॉल्ट नाम रहेगा।',
@@ -211,6 +214,7 @@
       yourName: 'आपका नाम (वैकल्पिक)',
       namePh: 'जैसे: रमेश',
       priceHint: 'दाम आप कभी भी सेटिंग में बदल सकते हैं।',
+      priceHintMonth: 'इस महीने का दाम',
       about: 'छोटे डेयरी हिसाब के लिए बनाया गया। बिना इंटरनेट चलता है। आपका डेटा इसी फ़ोन में रहता है।',
       goToday: 'आज',
       thisMonthShort: 'इस महीने',
@@ -482,7 +486,7 @@
   function slotHTML(type, slot) {
     var isM = slot === 'm';
     var v = C.getSlot(state, ui.day, type, slot);
-    var rate = state.rates[type] || 0;
+    var rate = C.rateFor(state, C.monthOf(ui.day), type);
     return '<div class="slot">' +
       '<div class="slot-head"><span class="slot-title">' + (isM ? ICON.sun : ICON.moon) + '<span>' + esc(isM ? t('morning') : t('evening')) + '</span></span><span>L</span></div>' +
       '<div class="stepper">' +
@@ -500,7 +504,7 @@
     return '<div class="card type-card">' +
       '<div class="type-head">' +
       '<div class="type-name"><span class="dot ' + type + '"></span>' + esc(typeName(type)) + '</div>' +
-      '<div class="type-rate">' + money(state.rates[type] || 0) + ' / ' + esc(t('litre')) + '</div>' +
+      '<div class="type-rate">' + money(C.rateFor(state, C.monthOf(ui.day), type)) + ' / ' + esc(t('litre')) + '</div>' +
       '</div>' +
       '<div class="stepper-row">' + slotHTML(type, 'm') + slotHTML(type, 'e') + '</div>' +
       '<div class="type-foot"><span>' + esc(t('total')) + '</span>' +
@@ -540,10 +544,10 @@
 
     html += '<div class="rate-strip">' +
       C.TYPE_IDS.map(function (id) {
-        return '<button class="rate-chip" data-act="go-rates">' +
+        return '<button class="rate-chip" data-act="open-prices">' +
           '<span class="dot ' + id + '"></span>' +
-          '<span style="min-width:0"><span class="lbl">' + esc(typeShort(id)) + '</span>' +
-          '<span class="val">' + money(state.rates[id] || 0) + ' / L</span></span>' +
+          '<span class="chip-txt"><span class="lbl">' + esc(typeShort(id)) + '</span>' +
+          '<span class="val">' + money(C.rateFor(state, C.monthOf(d), id)) + ' / L</span></span>' +
           '<span class="pen">' + ICON.pen + '</span>' +
           '</button>';
       }).join('') +
@@ -582,7 +586,7 @@
         var sa = byId('sa-' + type + '-' + slot);
         if (sa) {
           var v = C.getSlot(state, d, type, slot);
-          sa.innerHTML = v > 0 ? '= ' + money(v * (state.rates[type] || 0)) : '&nbsp;';
+          sa.innerHTML = v > 0 ? '= ' + money(v * C.rateFor(state, C.monthOf(d), type)) : '&nbsp;';
         }
       });
       var tq = byId('tq-' + type);
@@ -627,7 +631,7 @@
         '<div class="stat-grid">' +
         '<div class="stat"><span>' + esc(t('morning')) + '</span><b>' + qty(mt.m) + ' L</b></div>' +
         '<div class="stat"><span>' + esc(t('evening')) + '</span><b>' + qty(mt.e) + ' L</b></div>' +
-        '<div class="stat"><span>' + esc(t('average')) + '</span><b>' + money(mt.count ? mt.amount / mt.count : 0) + '</b></div>' +
+        '<div class="stat"><span class="long">' + esc(t('average')) + '</span><b>' + money(mt.count ? mt.amount / mt.count : 0) + '</b></div>' +
         '</div>' +
         '<div class="divider"></div>' +
         C.TYPE_IDS.map(function (id) {
@@ -877,6 +881,30 @@
     if (sub) sub.textContent = t('editDay') + ' · ' + money(C.dayTotals(state, day).amount);
   }
 
+  function openPriceSheet() {
+    var mk = ui.month;
+    sheetState = { type: 'prices', month: mk };
+    var rates = C.ratesForMonth(state, mk);
+    var html =
+      '<div class="sheet-title">' + esc(t('prices')) + '</div>' +
+      '<div class="sheet-sub">' + esc(monthName(mk, false)) + ' · ' + esc(t('priceHintMonth')) + '</div>' +
+      '<div class="field">' +
+      '<label for="qs-cow"><span class="dot cow" style="display:inline-block;margin-right:6px"></span>' + esc(typeName('cow')) + '</label>' +
+      '<div class="input-wrap"><span class="prefix">₹</span>' +
+      '<input class="input sheet-rate" id="qs-cow" data-type="cow" type="text" inputmode="decimal" value="' + num(rates.cow) + '"></div>' +
+      '</div>' +
+      '<div class="field">' +
+      '<label for="qs-buffalo"><span class="dot buffalo" style="display:inline-block;margin-right:6px"></span>' + esc(typeName('buffalo')) + '</label>' +
+      '<div class="input-wrap"><span class="prefix">₹</span>' +
+      '<input class="input sheet-rate" id="qs-buffalo" data-type="buffalo" type="text" inputmode="decimal" value="' + num(rates.buffalo) + '"></div>' +
+      '</div>' +
+      '<div class="btn-row">' +
+      '<button class="btn" data-act="sheet-close">' + esc(t('cancel')) + '</button>' +
+      '<button class="btn primary" data-act="save-prices">' + ICON.check + '<span>' + esc(t('save')) + '</span></button>' +
+      '</div>';
+    openSheet(html);
+  }
+
   function openExportSheet() {
     sheetState = { type: 'export' };
     var data = C.exportJSON(state);
@@ -1038,10 +1066,12 @@
     window.print();
   }
 
-  function saveRates(ids) {
+  function saveRates() {
     C.TYPE_IDS.forEach(function (id) {
       state.rates[id] = readRateInput('rate-' + id, state.rates[id]);
     });
+    // the new price starts with the current month; older bills keep their price
+    C.lockMonthRates(state, C.monthKey(new Date()));
     saveState();
     renderTopbar();
     renderView();
@@ -1081,6 +1111,23 @@
         }, true);
         break;
       case 'go-rates': setTab('settings'); break;
+      case 'open-prices': openPriceSheet(); break;
+      case 'save-prices': {
+        var mk = (sheetState && sheetState.month) || ui.month;
+        C.TYPE_IDS.forEach(function (id) {
+          var el = byId('qs-' + id);
+          var v = el ? parseNum(el.value) : C.rateFor(state, mk, id);
+          if (!isFinite(v) || v < 0 || v > 100000) v = C.rateFor(state, mk, id);
+          state.monthRates[mk] = state.monthRates[mk] || {};
+          state.monthRates[mk][id] = C.round2(v);
+          if (mk === C.monthKey(new Date())) state.rates[id] = C.round2(v);
+        });
+        saveState();
+        closeSheet();
+        renderTopbar(); renderTabs(); renderView();
+        toast(t('savedToast'));
+        break;
+      }
       case 'open-day': openDaySheet(ds.day); break;
       case 'day-delete':
         confirmSheet(t('clearDay'), t('clearConfirm'), t('delete'), function () {

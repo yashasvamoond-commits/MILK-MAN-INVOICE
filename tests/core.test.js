@@ -128,4 +128,27 @@ test('import / export round trip', () => {
   assert.throws(() => C.importJSON('{}'), /Not a Doodh Hisaab backup/);
 });
 
+test('price changes never rewrite past months', () => {
+  const s = C.emptyState();
+  s.rates = { cow: 60, buffalo: 80 };
+  C.setSlot(s, '2026-03-10', 'cow', 'm', 2);   // March locked at 60
+  assert.strictEqual(C.dayTotals(s, '2026-03-10').amount, 120);
+  s.rates.cow = 75;                            // price goes up in April
+  C.lockMonthRates(s, '2026-04');
+  C.setSlot(s, '2026-04-02', 'cow', 'm', 2);
+  assert.strictEqual(C.dayTotals(s, '2026-04-02').amount, 150);
+  assert.strictEqual(C.dayTotals(s, '2026-03-10').amount, 120, 'March keeps ₹60');
+  assert.strictEqual(C.monthTotals(s, '2026-03').amount, 120);
+  assert.strictEqual(C.monthTotals(s, '2026-04').amount, 150);
+  assert.strictEqual(C.monthTotals(s, '2026-03').types.cow.rate, 60);
+  assert.strictEqual(C.monthTotals(s, '2026-04').types.cow.rate, 75);
+});
+
+test('month snapshot is created on first entry of that month', () => {
+  const s = C.emptyState();
+  C.setSlot(s, '2026-05-01', 'buffalo', 'e', 1);
+  assert.deepStrictEqual(s.monthRates['2026-05'], { cow: 60, buffalo: 80 });
+  assert.strictEqual(C.rateFor(s, '2026-06', 'buffalo'), 80, 'unused month follows current price');
+});
+
 console.log('\n' + passed + ' tests passed');

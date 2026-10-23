@@ -253,4 +253,46 @@ test('state persists through localStorage reload', () => {
   assert.ok(!dom2.window.document.querySelector('#sheet-root').classList.contains('open'));
 });
 
+test('quick price sheet changes only the shown month', () => {
+  const { w, d } = boot();
+  clickAct(w, 'onboard-done');
+  // march entry at 60
+  const picker = d.querySelector('.date-overlay');
+  picker.value = '2026-03-10';
+  picker.dispatchEvent(new w.Event('change', { bubbles: true }));
+  click(w, '[data-act="step"][data-type="cow"][data-slot="m"][data-dir="1"]'); // 0.5 L
+  assert.strictEqual(C.monthTotals(state(w), '2026-03').amount, 30);
+  // go back to today, change the price with the quick sheet
+  clickAct(w, 'day-today');
+  clickAct(w, 'open-prices');
+  d.querySelector('#qs-cow').value = '80';
+  clickAct(w, 'save-prices');
+  assert.strictEqual(C.rateFor(state(w), C.monthKey(new Date()), 'cow'), 80);
+  assert.strictEqual(C.rateFor(state(w), '2026-03', 'cow'), 60, 'March price untouched');
+  assert.strictEqual(C.monthTotals(state(w), '2026-03').amount, 30);
+  // something recorded today now uses 80
+  click(w, '[data-act="step"][data-type="cow"][data-slot="m"][data-dir="1"]');
+  click(w, '[data-act="step"][data-type="cow"][data-slot="m"][data-dir="1"]'); // 1 L
+  assert.ok(d.querySelector('#hero-amt').textContent.indexOf('80') >= 0);
+});
+
+test('settings price change does not rewrite last month', () => {
+  const { w, d } = boot();
+  clickAct(w, 'onboard-done');
+  const ui = w.__doodh.ui();
+  const prev = C.addMonths(C.monthKey(new Date()), -1);
+  // record 2 L in the previous month
+  ui.month = prev;
+  ui.day = C.addDays(prev + '-01', 2);
+  clickAct(w, 'tab', '[data-tab="month"]');
+  clickAct(w, 'tab', '[data-tab="entry"]');
+  for (let i = 0; i < 4; i++) click(w, '[data-act="step"][data-type="cow"][data-slot="m"][data-dir="1"]');
+  assert.strictEqual(C.monthTotals(state(w), prev).amount, 120);
+  clickAct(w, 'tab', '[data-tab="settings"]');
+  d.querySelector('#rate-cow').value = '99';
+  clickAct(w, 'save-rates');
+  assert.strictEqual(C.monthTotals(state(w), prev).amount, 120, 'previous month keeps ₹60');
+  assert.strictEqual(state(w).rates.cow, 99);
+});
+
 console.log('\n' + passed + ' ui tests passed');

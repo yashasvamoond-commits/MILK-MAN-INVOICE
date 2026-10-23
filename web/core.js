@@ -68,6 +68,7 @@
       onboarded: false,
       rates: { cow: 60, buffalo: 80 },
       names: {},            // custom display names, optional
+      monthRates: {},       // "YYYY-MM" -> { cow, buffalo } price locked for that month
       name: '',             // customer name shown on the bill
       shop: '',             // dairy / milkman name shown on the bill
       entries: {}           // "YYYY-MM-DD" -> { cow: {m,e}, buffalo: {m,e} }
@@ -96,6 +97,20 @@
     if (typeof raw.name === 'string') s.name = raw.name.trim().slice(0, 40);
     if (typeof raw.shop === 'string') s.shop = raw.shop.trim().slice(0, 40);
 
+    if (raw.monthRates && typeof raw.monthRates === 'object') {
+      Object.keys(raw.monthRates).forEach(function (mk) {
+        if (!isValidMonthKey(mk)) return;
+        var r = raw.monthRates[mk];
+        if (!r || typeof r !== 'object') return;
+        var snap = {};
+        TYPE_IDS.forEach(function (id) {
+          var v = Number(r[id]);
+          snap[id] = (isFinite(v) && v >= 0 && v <= 100000) ? round2(v) : s.rates[id];
+        });
+        s.monthRates[mk] = snap;
+      });
+    }
+
     if (raw.names && typeof raw.names === 'object') {
       TYPE_IDS.forEach(function (id) {
         var n = safeName(raw.names[id]);
@@ -119,7 +134,54 @@
         if (Object.keys(out).length) s.entries[key] = out;
       });
     }
+
+    // Any month with records but no stored price keeps today's price, never a
+    // price set later on.
+    Object.keys(s.entries).forEach(function (dayKey) {
+      var mk = monthOf(dayKey);
+      if (!s.monthRates[mk]) {
+        s.monthRates[mk] = { cow: s.rates.cow, buffalo: s.rates.buffalo };
+      }
+    });
+
     return s;
+  }
+
+  // Price for a milk type in a given month. Past months keep the price they
+  // were recorded with, so old bills never change when today's price changes.
+  function rateFor(state, mk, typeId) {
+    var snap = state.monthRates && state.monthRates[mk];
+    if (snap && typeof snap[typeId] === 'number' && isFinite(snap[typeId])) return snap[typeId];
+    return Number(state.rates[typeId]) || 0;
+  }
+
+  function ratesForMonth(state, mk) {
+    var out = {};
+    TYPE_IDS.forEach(function (id) { out[id] = rateFor(state, mk, id); });
+    return out;
+  }
+
+  function ensureMonthRates(state, mk) {
+    if (!isValidMonthKey(mk)) return state;
+    if (!state.monthRates) state.monthRates = {};
+    if (!state.monthRates[mk]) {
+      state.monthRates[mk] = {
+        cow: Number(state.rates.cow) || 0,
+        buffalo: Number(state.rates.buffalo) || 0
+      };
+    }
+    return state;
+  }
+
+  // Lock the current price into a month (used when prices are edited).
+  function lockMonthRates(state, mk) {
+    if (!isValidMonthKey(mk)) return state;
+    if (!state.monthRates) state.monthRates = {};
+    state.monthRates[mk] = {
+      cow: Number(state.rates.cow) || 0,
+      buffalo: Number(state.rates.buffalo) || 0
+    };
+    return state;
   }
 
   function hasEntry(state, dayKey) {
@@ -143,17 +205,22 @@
     t[slot] = v;
     if (t.m > 0 || t.e > 0) entry[typeId] = t;
     else delete entry[typeId];
-    if (Object.keys(entry).length) state.entries[dayKey] = entry;
-    else delete state.entries[dayKey];
+    if (Object.keys(entry).length) {
+      state.entries[dayKey] = entry;
+      ensureMonthRates(state, monthOf(dayKey));
+    } else {
+      delete state.entries[dayKey];
+    }
     return state;
   }
 
   function dayTotals(state, dayKey) {
     var entry = state.entries[dayKey] || {};
-    var out = { types: {}, qty: 0, amount: 0, m: 0, e: 0 };
+    var mk = monthOf(dayKey);
+    var out = { types: {}, qty: 0, amount: 0, m: 0, e: 0, rates: ratesForMonth(state, mk) };
     TYPE_IDS.forEach(function (id) {
       var t = entry[id] || { m: 0, e: 0 };
-      var rate = Number(state.rates[id]) || 0;
+      var rate = rateFor(state, mk, id);
       var qty = round2((Number(t.m) || 0) + (Number(t.e) || 0));
       var amount = round2(qty * rate);
       out.types[id] = {
@@ -190,8 +257,9 @@
       e: 0,
       count: 0
     };
+    var monthRate = ratesForMonth(state, mk);
     TYPE_IDS.forEach(function (id) {
-      out.types[id] = { m: 0, e: 0, qty: 0, amount: 0, rate: Number(state.rates[id]) || 0 };
+      out.types[id] = { m: 0, e: 0, qty: 0, amount: 0, rate: monthRate[id] };
     });
     var keys = entriesForMonth(state, mk);
     keys.forEach(function (day) {
@@ -233,6 +301,7 @@
     });
     if (!Object.keys(copy).length) return false;
     state.entries[toKey] = JSON.parse(JSON.stringify(copy));
+    ensureMonthRates(state, monthOf(toKey));
     return true;
   }
 
@@ -289,6 +358,10 @@
     hasEntry: hasEntry,
     getSlot: getSlot,
     setSlot: setSlot,
+    rateFor: rateFor,
+    ratesForMonth: ratesForMonth,
+    ensureMonthRates: ensureMonthRates,
+    lockMonthRates: lockMonthRates,
     dayTotals: dayTotals,
     entriesForMonth: entriesForMonth,
     monthTotals: monthTotals,
