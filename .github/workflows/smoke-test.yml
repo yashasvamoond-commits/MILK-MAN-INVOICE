@@ -1,0 +1,10 @@
+name: Smoke test
+on:
+  push:
+    branches: [ 'arena/**' ]
+  workflow_dispatch:
+jobs:
+  hello:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "actions are working"
