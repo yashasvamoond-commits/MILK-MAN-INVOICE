@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Doodh Hisaab</string>
+    <string name="share_bill">Share milk bill</string>
+    <string name="share_failed">No app available to share</string>
+    <string name="print_job">Doodh Hisaab bill</string>
+    <string name="print_failed">Printing is not available</string>
+</resources>

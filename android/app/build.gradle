@@ -1,0 +1,43 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.doodhhisaab.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.doodhhisaab.app'
+        minSdk 23
+        targetSdk 34
+        versionCode 1
+        versionName '1.0.0'
+        resourceConfigurations += ['en', 'hi']
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            // Signed with the local debug key so the APK can be sideloaded directly.
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    sourceSets {
+        main {
+            // The web app in /web is shipped as-is; no build step needed.
+            assets.srcDirs += file('../../web')
+        }
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}

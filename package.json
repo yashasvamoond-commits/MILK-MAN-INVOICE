@@ -1,0 +1,13 @@
+{
+  "name": "doodh-hisaab",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Simple daily milk record & monthly bill app (Android APK + web)",
+  "scripts": {
+    "test": "node tests/core.test.js && node tests/ui.test.js",
+    "serve": "node tools/serve.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.3"
+  }
+}
