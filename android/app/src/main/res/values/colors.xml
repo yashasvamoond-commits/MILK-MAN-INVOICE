@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="cream">#FFF5F2EA</color>
+    <color name="green">#FF1F7A4D</color>
+    <color name="green_dark">#FF14603B</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="icon_background">#FF1F7A4D</color>
+</resources>

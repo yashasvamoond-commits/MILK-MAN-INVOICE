@@ -1,0 +1,114 @@
+name: Build APK
+
+on:
+  push:
+    branches: ['arena/**', 'main']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Assemble APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run tests
+        run: |
+          npm ci
+          npm test
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Bump version code for this build
+        run: |
+          cd android
+          VC=${{ github.run_number }}
+          sed -i "s/versionCode 1$/versionCode ${VC}/" app/build.gradle
+          grep -n "versionCode\|versionName" app/build.gradle
+
+      - name: Build APK
+        run: |
+          cd android
+          gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Rename APK
+        run: |
+          mkdir -p dist
+          SRC=$(find android/app/build/outputs/apk/debug -name '*.apk' | head -n 1)
+          echo "built: $SRC"
+          cp "$SRC" "dist/DoodhHisaab-latest.apk"
+          cp "$SRC" "dist/DoodhHisaab-${{ github.run_number }}.apk"
+          sha256sum dist/*.apk > dist/SHA256SUMS.txt
+          ls -lh dist
+
+      - name: Verify APK
+        run: |
+          set -e
+          APK=dist/DoodhHisaab-latest.apk
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
+          echo "== badging =="
+          "$BUILD_TOOLS/aapt" dump badging "$APK" | head -n 6
+          echo "== signature =="
+          "$BUILD_TOOLS/apksigner" verify --print-certs "$APK"
+          echo "== packaged files =="
+          unzip -l "$APK" | grep -E 'assets/|classes.dex|AndroidManifest' | head -n 20
+          # the web app must really be inside the APK
+          unzip -p "$APK" assets/index.html | head -n 3
+          unzip -l "$APK" assets/style.css assets/app.js assets/core.js > /dev/null
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DoodhHisaab-apk
+          path: dist/*
+          retention-days: 90
+          if-no-files-found: error
+
+      # Stable download link for preview builds from any branch:
+      # https://github.com/<owner>/<repo>/releases/download/apk-preview/DoodhHisaab-latest.apk
+      - name: Publish APK (preview, stable link)
+        if: github.ref != 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-preview
+          name: Doodh Hisaab — install APK
+          body: |
+            ## Install Doodh Hisaab (दूध हिसाब)
+
+            1. Download **DoodhHisaab-latest.apk** below.
+            2. Open the file on your Android phone.
+            3. If Play Protect asks, tap **Install anyway** / **More details → Install anyway**.
+
+            The APK is built from the source in this repository by GitHub Actions
+            (workflow: `Build APK`, build #${{ github.run_number }}).
+            It works fully offline and needs no permissions apart from vibration.
+          files: dist/*.apk
+          make_latest: false
+
+      # Main branch builds become the "latest" release.
+      - name: Publish APK (latest)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Doodh Hisaab — latest build
+          body: |
+            Download **DoodhHisaab-latest.apk** below and install it on your Android phone.
+          files: dist/*.apk
+          make_latest: true
